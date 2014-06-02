@@ -544,7 +544,7 @@ void sig_handler(int sig) {
 
     switch (sig) {
         case (SIGCHLD):
-            pid = waitpid(-1, &status, WNOHANG);
+            pid = waitpid(-1, &status, 0);
             
             if (WEXITSTATUS(status)) {
                 /*
