@@ -1,0 +1,99 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <signal.h>
+
+static volatile int received_signal = 0;
+
+static int nDigits(unsigned n) {
+    int size = 0;
+
+    do {
+        size++;
+    } while(n /= 10);
+
+    return size;
+}
+
+static void sig_handler(int sig) {
+    switch (sig) {
+        case (SIGUSR1):
+            received_signal = 1;
+            break;
+        case (SIGUSR2):
+            received_signal = 2;
+            break;
+    }
+}
+
+int incrementar(char *nome[], unsigned valor) {
+    int fd;
+    int i; 
+    unsigned int offset;
+    int valDigits;
+    char str[1024];
+
+    valDigits = nDigits(valor);
+    offset = 4;
+    fd = open("count_fifo", O_WRONLY);
+    
+    for (i = 0; nome[i]; i++) {
+        sprintf(str + offset, "%s:", nome[i]);
+        offset += strlen(nome[i]) + 1;
+    }
+    
+    sprintf(str + offset, "%u", valor);
+    offset += valDigits;
+    str[2] = 1;
+    str[3] = 1 + i;
+    str[0] = (offset - 2) / 256;
+    str[1] = (offset - 2) % 256;
+    write(fd, str, offset);
+    close(fd);
+    
+    return 0;
+}
+
+int agregar(char *prefixo[], unsigned nivel, char *path) {
+    int fd;
+    int i;
+    unsigned int offset;
+    int levelDigits;
+    char str[1024];
+
+    received_signal = 0;
+
+    signal(SIGUSR1, sig_handler);
+    signal(SIGUSR2, sig_handler);
+    levelDigits = nDigits(nivel);
+    offset = 4;
+    fd = open("count_fifo", O_WRONLY);
+
+    for(i = 0; prefixo[i]; i++) {
+        sprintf(str + offset, "%s:", prefixo[i]);
+        offset += strlen(prefixo[i]) + 1;
+    }
+
+    sprintf(str + offset, "%u:", nivel);
+    offset += levelDigits + 1;
+    sprintf(str + offset, "%s:", path);
+    offset += strlen(path) + 1;
+    str[offset++] = getpid() / 256;
+    str[offset++] = getpid() % 256;
+
+    str[2] = 2;
+    str[3] = 3 + i;
+    str[0] = (offset - 2) / 256;
+    str[1] = (offset - 2) % 256;
+    write(fd, str, offset);
+
+    close(fd);
+
+    while(received_signal == 0);
+    
+    if (received_signal == 1)
+        return 0;
+    else
+        return 1;    
+}
